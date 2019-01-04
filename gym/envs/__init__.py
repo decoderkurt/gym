@@ -1,5 +1,13 @@
 from gym.envs.registration import registry, register, make, spec
 
+# Pap
+# ----------------------------------------
+register(
+    id='Pap-v0',
+    entry_point='gym.envs.pap:PapEnv',
+)
+
+
 # Algorithmic
 # ----------------------------------------
 
@@ -530,4 +538,3 @@ register(
     entry_point='gym.envs.unittest:MemorizeDigits',
     reward_threshold=20,
     )
-
