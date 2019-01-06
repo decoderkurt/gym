@@ -2,78 +2,80 @@ import gym
 from gym import spaces, logger
 from gym.spaces import Discrete
 from gym.spaces import seed
-from gym.spaces.tuple_space import Tuple
+from gym.spaces.multi_discrete import MultiDiscrete
 import numpy as np
 import random
 import sys
 from PIL import Image
-
+from scipy.misc import imsave
+from gym.utils import seeding
+from skimage.measure import compare_ssim as ssim
+from skimage import data, img_as_float
+"""
+0 - No guess yet submitted (only after reset)
+1 - Guess is lower than the target
+2 - Guess is equal to the target
+3 - Guess is higher than the target
+"""
 class PapEnv(gym.Env):
-    metadata = {'render.modes': ['human', 'rgb_array']}
-
     def __init__(self):
         seed()
-        self.img = Image.open(r"E:\gym\gym\envs\pap\012.bmp")
-        self.mask = np.asarray(Image.open(r"E:\gym\gym\envs\pap\012.png"))
+        self.seed()
+        #self.img = Image.open(r"E:\gym\gym\envs\pap\012.bmp")
+        self.img = Image.open(r"E:\gym\gym\envs\pap\012Ori.bmp")
+        #self.mask = np.asarray(Image.open(r"E:\gym\gym\envs\pap\012.png"))
+        self.mask = np.asarray(Image.open(r"E:\gym\gym\envs\pap\012Ori.png"))
+        print(self.mask)
+
         self.width, self.height = self.img.size
 
-        self.action_space = Tuple((Discrete(self.width),Discrete(self.height)))
-        self.state = 100
-        self.max_score  = 0
-        #print (np.asarray(zz))
-        #zz = (np.random.rand(10, 10, 3)* 255).astype('uint8')
-        #print (np.asarray(self.mask))
-        #Image.fromarray(zz, mode='L').save(r"E:\gym\gym\envs\pap\result.png")
-        #Image.fromarray(np.asarray(self.img), mode='RGB').save(r"E:\gym\gym\envs\pap\result2.png")
-        """
-        newMaskArray = np.full([self.width, self.height, 3], -1)
-        score = 0
-        for i in range(self.width):
-            for j in range(self.height):
-                newMaskArray[i,j] = np.random.randint(0,255)
-                if newMaskArray[i,j][0]== self.mask[i,j][0] :
-                    score += 1
-        if score > self.max_score :
-            self.max_score = score
-        #print (newMaskArray)
-        print(score)
-        """
+        self.action_space = spaces.Discrete(256)
+        self.observation_space = spaces.Discrete(4)
+
+        self.img_array = np.asarray(self.img.convert('L'))
+
+        self.guess_count = 0
+        self.guess_max = 100
+        self.observation = 0
+
+        self.reset()
+
+    def seed(self, seed=None):
+        self.np_random, seed = seeding.np_random(seed)
+        return [seed]
 
     def step(self, action):
-        self.state = self.state - 1
-        if self.state <= 0 :
-            return {}, self.max_score, True, {}
-
-        newMaskArray = np.full([self.width, self.height, 3], -1)
-        score = 0
+        print("#######",self.guess_count)
+        print(action)
+        newMaskArray = np.full([self.width, self.height], -1)
+        count=  np.array([0,0])
         for i in range(self.width):
             for j in range(self.height):
-                newMaskArray[i,j] = np.random.randint(0,255)
-                if newMaskArray[i,j][0]== self.mask[i,j][0] :
-                    score += 1
-        if score > self.max_score :
-            self.max_score = score
-            print("max socre updated ", self.max_score)
+                if self.img_array[i][j] >= 70:
+                    newMaskArray[i][j] = 0
+                    count[1] += 1
+                else:
+                    newMaskArray[i][j] = 255
+                    count[0] += 1
+        mask_zero_count = np.count_nonzero(self.mask[...,0]==0)
 
-        #self.take_action(action)
-        #self.status = self.env.step()
-        #reward = self.get_reward()
-        #ob = self.env.getState()
-        #episode_over = self.status != hfo_py.IN_GAME
-        return {}, self.max_score, False, {}
+        if count[0] <  mask_zero_count:
+            self.observation = 1
+        elif count[0] == mask_zero_count:
+            self.observation = 2
+        else :
+            self.observation = 3
+
+        imsave(r"E:\gym\gym\envs\pap\result2.png", newMaskArray)
+        reward = ( min(count[0], mask_zero_count) / max(count[0], mask_zero_count)) ** 2
+        print(reward)
+
+        self.guess_count += 1
+        done = self.guess_count >= self.guess_max
+
+        return self.observation, reward, done, {}
 
     def reset(self):
-        self.state = np.full([self.width, self.height], 0)
-        self.max_score = 0
-        self.state = 100
-        return self.state
-
-    def render(self, mode='human', close=False):
-        pass
-
-    def take_action(self, action):
-        pass
-
-    def get_reward(self):
-        """ Reward is given for XY. """
-        return 0
+        self.guess_count = 0
+        self.observation = 0
+        return self.observation
